@@ -14,10 +14,10 @@ def extract_and_map_sources(html_content: str, max_chunk_tokens: int = 3000):
         max_chunk_tokens: Maximum tokens per text chunk
         
     Returns:
-        Tuple of (chunk_mappings, image_mappings)
+        Tuple of (chunk_mappings, image_mappings) as dictionaries keyed by ID
     """
-    chunk_mappings = []
-    image_mappings = []
+    chunk_mappings = {}  # Dictionary keyed by chunk_id
+    image_mappings = {}  # Dictionary keyed by image_id
     
     # Step 1: Extract images and get cleaned text
     cleaned_text, images = extract_images_from_html(html_content)
@@ -35,23 +35,21 @@ def extract_and_map_sources(html_content: str, max_chunk_tokens: int = 3000):
         
         for i, chunk in enumerate(chunks):
             chunk_id = f"chunk_{i:03d}"
-            chunk_mapping = {
-                "chunk_id": chunk_id,
-                "chunk_content": chunk,
-                "source_metadata": {
+            chunk_mappings[chunk_id] = {
+                "content": chunk,
+                "metadata": {
                     "type": "text",
                     "index": i,
-                    "length": len(chunk)
+                    "length": len(chunk),
+                    "token_count": len(tiktoken.get_encoding("cl100k_base").encode(chunk))
                 }
             }
-            chunk_mappings.append(chunk_mapping)
     
-    # Step 3: Create image mappings - modified to match ImageReference structure
-    for i, image_ref in enumerate(images):
-        image_mapping = {
-            "image_id": image_ref.img_id,  # Use the img_id from ImageReference
-            "image_content": image_ref.base64_data,
-            "source_metadata": {
+    # Step 3: Create image mappings - using dictionary
+    for image_ref in images:
+        image_mappings[image_ref.img_id] = {
+            "content": image_ref.base64_data,
+            "metadata": {
                 "type": "image",
                 "format": image_ref.img_format,
                 "size_bytes": image_ref.size_bytes,
@@ -59,7 +57,6 @@ def extract_and_map_sources(html_content: str, max_chunk_tokens: int = 3000):
                 "placeholder": image_ref.placeholder
             }
         }
-        image_mappings.append(image_mapping)
     
     return chunk_mappings, image_mappings
 
@@ -123,7 +120,7 @@ def extract_images_from_html(html_content: str):
     
     logger.info(f"Extracted {len(images)} images from HTML")
     for img in images:
-        logger.debug(f"{img.img_id}: {img.format} format, {img.size_bytes} bytes, ~{img.estimated_tokens} tokens")
+        logger.debug(f"{img.img_id}: {img.img_format} format, {img.size_bytes} bytes, ~{img.estimated_tokens} tokens")
     
     return cleaned_html, images
 
@@ -242,7 +239,7 @@ def merge_results_with_source_tracking(results: list, strict: bool = True) -> tu
     return merged_chunks, merged_images
 
 
-# Helper function to access mappings by ID
+# Helper functions to access mappings by ID
 def get_chunk_by_id(chunk_mappings: dict, chunk_id: str):
     """
     Retrieve a specific chunk by its ID.
@@ -269,3 +266,28 @@ def get_image_by_id(image_mappings: dict, image_id: str):
         Image data or None if not found
     """
     return image_mappings.get(image_id)
+
+
+# Example usage
+if __name__ == "__main__":
+    # Example HTML with embedded image
+    sample_html = """
+    <html>
+        <body>
+            <p>This is some text content.</p>
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA...">
+            <p>More text here.</p>
+        </body>
+    </html>
+    """
+    
+    # Extract and map sources
+    chunks, images = extract_and_map_sources(sample_html)
+    
+    # Access data by ID
+    print("Chunks:", list(chunks.keys()))
+    print("Images:", list(images.keys()))
+    
+    # Get specific chunk
+    if "chunk_001" in chunks:
+        print("First chunk content:", chunks["chunk_001"]["content"])
