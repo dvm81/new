@@ -187,19 +187,19 @@ async def process_images_batch_async_legacy(
 # Helper function to convert results back to a dictionary keyed by image_id
 def results_to_dict(results: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     """
-    Convert list of results to dictionary keyed by image_id.
+    Convert list of results to dictionary keyed by source_id (image_id).
     
     Args:
         results: List of extraction results
         
     Returns:
-        Dictionary keyed by image_id
+        Dictionary keyed by source_id
     """
     results_dict = {}
     for result in results:
-        image_id = result.get("image_id")
-        if image_id:
-            results_dict[image_id] = result
+        source_id = result.get("source_id")
+        if source_id:
+            results_dict[source_id] = result
     return results_dict
 
 
@@ -219,9 +219,22 @@ async def main():
         max_concurrent=3
     )
     
+    # Results will be a list of flat dictionaries like:
+    # [
+    #     {
+    #         "source_id": "img_001",
+    #         "source_type": "image",
+    #         "companies": [{"Word": "Nvidia", "BIC_value": "NVDA.O", ...}],
+    #         "BSTicker_value": "MSFT US",
+    #         "BSTicker_confidence": "very_high",
+    #         # ... all other extracted fields
+    #     },
+    #     ...
+    # ]
+    
     # Convert results to dictionary if needed
     results_dict = results_to_dict(results)
     
     # Access specific result
     if "img_001" in results_dict:
-        print(results_dict["img_001"]["extraction_results"])
+        print(results_dict["img_001"])  # All fields are at top level now
